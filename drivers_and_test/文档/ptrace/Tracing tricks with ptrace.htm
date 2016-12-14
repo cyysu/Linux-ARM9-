@@ -1,0 +1,190 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<!-- saved from url=(0062)http://pramode.net/articles/lfy/ptrace/pramode.html?1336448627 -->
+<html><head><title>Tracing tricks with ptrace</title>
+<meta http-equiv="Content-Type" content="text/html; charset=GB2312">
+<meta content="MSHTML 6.00.2900.5583" name="GENERATOR"></head>
+<body>
+<h1>Tracing tricks with ptrace</h1>
+<p>Have you ever wondered how a program like the GNU debugger helps you peek 
+into the working of another program? Have you thought of the magic which goes 
+into a fascinating environment like UML (User Mode Linux)? It's the magic of 
+`ptrace', one of the most interesting system calls available on GNU/Linux. The 
+objective of this article is to present the systems programmer with sufficient 
+information on the working of `ptrace' using which she can do cool projects like 
+the design of a simple debugger on her own. 
+</p><h2>Getting started</h2>
+<p>The `ptrace' system call helps us temporarily stop a running process and read 
+as well as modify the contents of registers and memory locations used by it. The 
+traced program can be made to stop every time it tries to enter the kernel via a 
+system call and every time it comes out of a syscall. We can also make the 
+traced program stop itself after the execution of a single instruction. These 
+features are enough to design debugging programs as well as sophisticated 
+`virtualization' facilities like User Mode Linux. 
+</p><p>Let's start with the code segment shown in <a href="http://pramode.net/articles/lfy/ptrace/list1.txt">Listing 1</a>. Try 
+pressing `Ctrl-C' while the program is running. You will note that instead of 
+getting terminated (which is the usual behaviour), the program gets `stopped'; 
+executing `ps ax' shows that this is indeed the case. 
+</p><p>The `ptrace' system call has the prototype: </p><pre>long ptrace(enum __ptrace_request request, pid_t pid, void *addr, void *data);
+
+</pre>The first argument is a `request'. Here, we are using the macro 
+PTRACE_TRACEME by which our program is conveying its readiness to get `traced'. 
+The remaining three arguments are simply ignored if the request is 
+PTRACE_TRACEME. Once the program has announced that it is ready to be traced, 
+any signal delivered to it (with the exception of SIGKILL) will result in the 
+process getting stopped. Pressing `Ctrl-C' results in a SIGINT signal being 
+delivered to the process. 
+<h2>Letting a parent trace its child</h2>
+<p>Let's make things a bit more interesting. <a href="http://pramode.net/articles/lfy/ptrace/list2.txt">Listing 2</a> shows a 
+program which calls the `fork' system call and creates a copy of itself. The 
+child process invokes `execl' and runs the program `child1' which has been 
+compiled from <a href="http://pramode.net/articles/lfy/ptrace/list3.txt">Listing 
+3</a>. The program being exec'd keeps printing `hello' in an infinite loop after 
+expressing its willingness to be traced. Now, the parent process sleeps for 1 
+second and then sends the SIGINT signal to the child (using the `kill' system 
+call). As a result, the child process stops and the parent comes out of `wait'; 
+the WIFSTOPPED macro checks whether the variable `status' contains a bit pattern 
+which indicates the fact that the child has stopped. The parent then goes to 
+sleep for three more seconds; once it comes out of the sleep, it restarts the 
+child by invoking `ptrace' with the request PTRACE_CONT. 
+</p><p>The basic usage of `ptrace' can be summed up as follows: 
+</p><ul>
+  <li>Parent process forks and execs the child; the child should express its 
+  willingness to be traced. 
+  </li><li>Parent sends a signal to the child and waits for the child to stop. 
+  </li><li>Once the child stops, the parent can manipulate it in different ways by 
+  invoking `ptrace' with several different `requests'. 
+  </li><li>When the parent has completed all `manipulations', it can restart the 
+  child and let it run to completion (or maybe arrange things in such a way that 
+  the child automatically stops at the next entry to a system call or stops 
+  after doing just one instruction). </li></ul>
+<p>Note that in this example, if the parent is to be able to trace the child, 
+the child should have called `ptrace(PTRACE_TRACEME, ...)'. If we are planning 
+to write a debugger, we should be able to trace arbitrary processes and not just 
+those who have expressed their willingness to be traced. <a href="http://pramode.net/articles/lfy/ptrace/list4.txt">Listing 4</a> shows a 
+parent process which forks a child - the child immediately invokes the 
+PTRACE_TRACEME request before loading `child2' (compiled from code in <a href="http://pramode.net/articles/lfy/ptrace/list5.txt">Listing 5</a>). The 
+`ptrace' manual page says that an invocation of PTRACE_TRACEME will result in a 
+signal SIGTRAP being delivered to the process every time an `exec' is called, 
+even before the exec'd process gets a chance to run. As a result of getting this 
+signal, the process stops. The parent then comes out of the wait, sleeps for ten 
+seconds and restarts the exec'd process with an invocation of PTRACE_CONT. 
+</p><h2>Parent peeks into child's registers!</h2>
+<p><a href="http://pramode.net/articles/lfy/ptrace/list6.txt">Listing 6</a> 
+shows a parent which stops a child process, `child3', retrieves the values of 
+all the CPU registers used by the child, alters the value of the `ebx' register 
+and then let's the child continue its execution. The PTRACE_GETREGS request 
+results in the values of the CPU registers used by the stopped child getting 
+copied to a variable `uregs' of type `user_regs_struct'. If you read <a href="http://pramode.net/articles/lfy/ptrace/list7.txt">Listing 7</a>, you will 
+see that the `ebx' register has the value 143 and the child keeps on looping 
+until it becomes equal to 245. The parent simply displays the value of the `ebx' 
+register (stored in the field uregs.ebx) and changes it to 245 by invoking 
+PTRACE_SETREGS. The child is then restarted; it comes out of the loop because 
+`ebx' has become 245. 
+</p><h2>Parent peeks into child's memory!</h2>
+<p>A tracing process can peek into the traced process's address space and 
+extract the values of variables stored there. Say you wish to stop a process, 
+examine the value of a variable `i' and change it to some other value. A 
+fundamental problem is identifying the address of the variable. A trivial 
+solution would be to make the process itself print it out or use an object file 
+analysis tool like `nm'. A better way is to use the GNU BFD library. 
+</p><p><a href="http://pramode.net/articles/lfy/ptrace/list8.txt">Listing 8</a> 
+shows a program which keeps on looping till a global variable `i' becomes equal 
+to 245. Here is part of the output I got when I compiled the code into `child4' 
+and executed `nm ./child4': </p><pre>080495a4 D _GLOBAL_OFFSET_TABLE_
+         w __gmon_start__
+080495c4 D i
+08048278 T _init
+080494c4 A __init_array_end
+
+</pre>
+<p>We see that the variable `i' has been assigned the address 0x80495c4. This 
+address can be used by the code segment shown in <a href="http://pramode.net/articles/lfy/ptrace/list9.txt">Listing 9</a> to examine 
+the value of `i' and alter it. The PTRACE_PEEKDATA parameter should be followed 
+by the pid of the process being traced and the address of the location whose 
+contents we wish to examine; in this case, it should be the address which `nm' 
+has displayed. The PTRACE_POKEDATA request can be used to alter the contents of 
+a memory location. 
+</p><h2>Using the BFD library</h2>
+<p>The GNU BFD (Binary File Descriptor) library can be used to extract 
+information from binary files. At the moment, we are only interested in scanning 
+an object file and identifying the names and addresses of all the globally 
+visible symbols. <a href="http://pramode.net/articles/lfy/ptrace/list10.txt">Listing 10</a> is a 
+program which does exactly this. It can be easily altered to yield the addresses 
+of only those symbols we are interested in. 
+</p><p>Each element of the array `symbol_table' contains a pointer to an object of 
+type `asymbol'. The macro's `bfd_asymbol_name' and `bfd_asymbol_value' are used 
+to extract the name of the symbol as well as its address. 
+</p><h2>Single Stepping</h2>
+<p>Debuggers help us `single-step' through our code, ie, execute one 
+instruction, then stop and view value of some variable, execute one more 
+instruction and so on. It's easy to do this using the PTRACE_SINGLESTEP request 
+which restarts the stopped process, lets it execute a single instruction and 
+then stops it once again. <a href="http://pramode.net/articles/lfy/ptrace/list11.txt">Listing 11</a> shows a 
+segment of a tracing process which keeps on calling PTRACE_SINGLESTEP until 
+value of a variable (at location `addr') in the traced program is found to 
+become equal to 10. At this stage, the tracing program changes the value to 2341 
+and lets the traced program run to completion by invoking PTRACE_CONT. <a href="http://pramode.net/articles/lfy/ptrace/list12.txt">Listing 12</a> shows 
+the program being traced. 
+</p><h2>System call tracing</h2>
+<p>The Linux implementation of `ptrace' has the ability to trace system calls. 
+The PTRACE_SYSCALL request restarts the child process (just like PTRACE_CONT) 
+but arranges for it to stop at the next entry to or exit from a system call. 
+This opens up some interesting possibilities. 
+</p><p><a href="http://pramode.net/articles/lfy/ptrace/list13.txt">Listing 13</a> 
+shows a child process which first prints its own process id as well as its 
+parent process id and then delivers a signal to itself. Because it is ready to 
+be traced, this will result in the process getting stopped. The parent waits for 
+this to happen and restarts the child by invoking PTRACE_SYSCALL. The next 
+instruction in the child is an invocation of the `getpid' system call; the child 
+gets stopped once again. Each system call has a unique `call number' - the 
+operating system kernel uses this to identify the actual function to be 
+executed. The parent process extracts this call number by invoking 
+PTRACE_GETREGS (the `orig_eax' field of `ureg' holds the call number) and 
+changes it to the call number of `getppid' by invoking PTRACE_SETREGS. The child 
+is then restarted and allowed to run to completion by invoking PTRACE_CONT. 
+Because the call number has been changed, the child will execute `getppid' 
+instead of `getpid'! 
+</p><p>This system call `redirection' has significance in the context of User Mode 
+Linux (UML), which is a port of the Linux kernel to itself. UML allows you to 
+run a modified version of the Linux kernel on top of the actual Linux kernel! 
+You can run processes under the control of the modified kernel. When these 
+processes execute system calls, they should execute code present in the modified 
+kernel and not the original host kernel. This is achieved by using the 
+PTRACE_SYSCALL facility offered by UML; interested readers should check out some 
+of the papers available on the net which describe UML architecture. 
+</p><h2>Attaching to a running process</h2>
+<p>All the examples we had seen till now involved a parent process spawning a 
+child and then tracing it. It is possible to use `ptrace' to trace an already 
+running process which is not a proper child of the tracing program. 
+</p><p><a href="http://pramode.net/articles/lfy/ptrace/list14.txt">Listing 14</a> 
+shows a tracing program calling PTRACE_ATTACH on a running process whose pid has 
+been read from the keyboard - <a href="http://pramode.net/articles/lfy/ptrace/list15.txt">Listing 15</a> shows 
+the code of the process being traced. The tracing program has another input - 
+the address of the function `fun' in the process being attached to. The effect 
+of calling PTRACE_ATTACH is that the target becomes a `traced child' of the 
+calling process; also, it appears as if the task being traced has called a 
+PTRACE_TRACEME. A signal, SIGSTOP is delivered to it (as part of the 
+PTRACE_ATTACH invocation) - the tracing program can now `wait' for the `child' 
+to stop. Once the parent comes out of the wait, it examines the value of the 
+instruction pointer in the child (the value stored in uregs.eip) and alters it 
+to point to the function `fun'. The process is then restarted (note that there 
+will be trouble if the function returns as we haven't stored a proper return 
+address on the stack). 
+</p><h2>References</h2>
+<p>We have seen some of the facilities offered by `ptrace' which is of use to 
+the systems programmer interested in writing programs like debuggers. The reader 
+is expected to have an understanding of system calls like fork, exec, wait and 
+the use of signals if she is to understand the ideas presented in this article. 
+The book `Advanced Programming in the Unix Environment' by <b>W.Richard 
+Stevens</b> is the best reference for everything concerning the Unix system call 
+interface. <b>Sandeep</b> has written a series of articles for the Linux Gazette 
+which explains `ptrace' in detail - the first part can be accessed at 
+http://linuxgazette.net/issue81/sandeep.html. The second and third parts were 
+published in issue81 and issue83 of the gazette. <b>Pradeep Padala</b> has 
+authored a very informative article on `ptrace' which can be obtained from 
+http://linuxjournal.com/article/6100. <b>Benjamin Chelf</b> has written an 
+excellent article on the process of linking and the nature of executable files; 
+you can read it at http://www.linux-mag.com/2002-03/compile_01.html. 
+</p><p>Source code/errata concerning this article is available at 
+http://pramode.net/lfy-apr/ </p>
+</body></html>

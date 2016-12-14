@@ -1,0 +1,115 @@
+
+sdram_elf:     file format elf32-littlearm
+
+Disassembly of section .text:
+
+30000000 <_start>:
+30000000:	eb000005 	bl	3000001c <disable_watch_dog>
+30000004:	eb000010 	bl	3000004c <memsetup>
+30000008:	eb000007 	bl	3000002c <copy_steppingstone_to_sdram>
+3000000c:	e59ff090 	ldr	pc, [pc, #144]	; 300000a4 <mem_cfg_val+0x34>
+
+30000010 <on_sdram>:
+30000010:	e3a0d30d 	mov	sp, #872415232	; 0x34000000
+30000014:	eb000032 	bl	300000e4 <main>
+
+30000018 <halt_loop>:
+30000018:	eafffffe 	b	30000018 <halt_loop>
+
+3000001c <disable_watch_dog>:
+3000001c:	e3a01453 	mov	r1, #1392508928	; 0x53000000
+30000020:	e3a02000 	mov	r2, #0	; 0x0
+30000024:	e5812000 	str	r2, [r1]
+30000028:	e1a0f00e 	mov	pc, lr
+
+3000002c <copy_steppingstone_to_sdram>:
+3000002c:	e3a01000 	mov	r1, #0	; 0x0
+30000030:	e3a02203 	mov	r2, #805306368	; 0x30000000
+30000034:	e3a03a01 	mov	r3, #4096	; 0x1000
+30000038:	e4914004 	ldr	r4, [r1], #4
+3000003c:	e4824004 	str	r4, [r2], #4
+30000040:	e1510003 	cmp	r1, r3
+30000044:	1afffffb 	bne	30000038 <copy_steppingstone_to_sdram+0xc>
+30000048:	e1a0f00e 	mov	pc, lr
+
+3000004c <memsetup>:
+3000004c:	e3a01312 	mov	r1, #1207959552	; 0x48000000
+30000050:	e28f2018 	add	r2, pc, #24	; 0x18
+30000054:	e1a00000 	nop			(mov r0,r0)
+30000058:	e2813034 	add	r3, r1, #52	; 0x34
+3000005c:	e4924004 	ldr	r4, [r2], #4
+30000060:	e4814004 	str	r4, [r1], #4
+30000064:	e1510003 	cmp	r1, r3
+30000068:	1afffffb 	bne	3000005c <memsetup+0x10>
+3000006c:	e1a0f00e 	mov	pc, lr
+
+30000070 <mem_cfg_val>:
+30000070:	22011110 	andcs	r1, r1, #4	; 0x4
+30000074:	00000700 	andeq	r0, r0, r0, lsl #14
+30000078:	00000700 	andeq	r0, r0, r0, lsl #14
+3000007c:	00000700 	andeq	r0, r0, r0, lsl #14
+30000080:	00000700 	andeq	r0, r0, r0, lsl #14
+30000084:	00000700 	andeq	r0, r0, r0, lsl #14
+30000088:	00000700 	andeq	r0, r0, r0, lsl #14
+3000008c:	00018005 	andeq	r8, r1, r5
+30000090:	00018005 	andeq	r8, r1, r5
+30000094:	008c07a3 	addeq	r0, ip, r3, lsr #15
+30000098:	000000b1 	streqh	r0, [r0], -r1
+3000009c:	00000030 	andeq	r0, r0, r0, lsr r0
+300000a0:	00000030 	andeq	r0, r0, r0, lsr r0
+300000a4:	30000010 	andcc	r0, r0, r0, lsl r0
+300000a8:	e1a00000 	nop			(mov r0,r0)
+300000ac:	e1a00000 	nop			(mov r0,r0)
+
+300000b0 <wait>:
+300000b0:	e1a0c00d 	mov	ip, sp
+300000b4:	e92dd800 	stmdb	sp!, {fp, ip, lr, pc}
+300000b8:	e24cb004 	sub	fp, ip, #4	; 0x4
+300000bc:	e24dd004 	sub	sp, sp, #4	; 0x4
+300000c0:	e50b0010 	str	r0, [fp, #-16]
+300000c4:	e51b3010 	ldr	r3, [fp, #-16]
+300000c8:	e3530000 	cmp	r3, #0	; 0x0
+300000cc:	0a000003 	beq	300000e0 <wait+0x30>
+300000d0:	e51b3010 	ldr	r3, [fp, #-16]
+300000d4:	e2433001 	sub	r3, r3, #1	; 0x1
+300000d8:	e50b3010 	str	r3, [fp, #-16]
+300000dc:	eafffff8 	b	300000c4 <wait+0x14>
+300000e0:	e89da808 	ldmia	sp, {r3, fp, sp, pc}
+
+300000e4 <main>:
+300000e4:	e1a0c00d 	mov	ip, sp
+300000e8:	e92dd800 	stmdb	sp!, {fp, ip, lr, pc}
+300000ec:	e24cb004 	sub	fp, ip, #4	; 0x4
+300000f0:	e24dd004 	sub	sp, sp, #4	; 0x4
+300000f4:	e3a03000 	mov	r3, #0	; 0x0
+300000f8:	e50b3010 	str	r3, [fp, #-16]
+300000fc:	e3a03456 	mov	r3, #1442840576	; 0x56000000
+30000100:	e2833050 	add	r3, r3, #80	; 0x50
+30000104:	e3a02c15 	mov	r2, #5376	; 0x1500
+30000108:	e5832000 	str	r2, [r3]
+3000010c:	e3a00c75 	mov	r0, #29952	; 0x7500
+30000110:	e2800030 	add	r0, r0, #48	; 0x30
+30000114:	ebffffe5 	bl	300000b0 <wait>
+30000118:	e3a02456 	mov	r2, #1442840576	; 0x56000000
+3000011c:	e2822054 	add	r2, r2, #84	; 0x54
+30000120:	e51b3010 	ldr	r3, [fp, #-16]
+30000124:	e1a03203 	mov	r3, r3, lsl #4
+30000128:	e1e03003 	mvn	r3, r3
+3000012c:	e5823000 	str	r3, [r2]
+30000130:	e51b3010 	ldr	r3, [fp, #-16]
+30000134:	e2833001 	add	r3, r3, #1	; 0x1
+30000138:	e50b3010 	str	r3, [fp, #-16]
+3000013c:	e3530008 	cmp	r3, #8	; 0x8
+30000140:	1afffff1 	bne	3000010c <main+0x28>
+30000144:	e3a03000 	mov	r3, #0	; 0x0
+30000148:	e50b3010 	str	r3, [fp, #-16]
+3000014c:	eaffffee 	b	3000010c <main+0x28>
+Disassembly of section .comment:
+
+00000000 <.comment>:
+   0:	43434700 	cmpmi	r3, #0	; 0x0
+   4:	4728203a 	undefined
+   8:	2029554e 	eorcs	r5, r9, lr, asr #10
+   c:	2e342e33 	mrccs	14, 1, r2, cr4, cr3, {1}
+  10:	Address 0x10 is out of bounds.
+

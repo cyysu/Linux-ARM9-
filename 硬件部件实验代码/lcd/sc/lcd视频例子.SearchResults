@@ -1,0 +1,4 @@
+---- VDEN_NORM Matches (1 in 1 files) ----
+Lcddrv.h:#define VDEN_NORM		0
+---- VDEN_INV Matches (1 in 1 files) ----
+Lcddrv.h:#define VDEN_INV		1
